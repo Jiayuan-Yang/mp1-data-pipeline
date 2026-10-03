@@ -1,3 +1,4 @@
+from data_processor import process_data, create_cleaning_report
 """
 Data Processing Pipeline - CLI Template
 
@@ -204,3 +205,31 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+df_before = df.copy()
+
+try:
+    df = process_data(df, config)
+except ValueError as e:
+    logger.error(e)
+    sys.exit(1)
+
+report = create_cleaning_report(df_before, df)
+
+print(report)
+
+logger.info(
+    "Processing complete: %d → %d rows",
+    len(df_before),
+    len(df)
+)
+
+df.to_csv(args.output, index=False)
+
+logger.info(
+    "Saved cleaned data to %s",
+    args.output
+)
