@@ -1,82 +1,54 @@
-"""DS 3500 MP1: command-line data processing pipeline."""
+"""DS3500 MP1: configurable command-line data pipeline."""
 import argparse
 import logging
 import sys
-from pathlib import Path
-
 import pandas as pd
-
-from src.data_loaders import load_data
-from src.data_processor import process_data, create_cleaning_report
-from src.utils import load_config
-
-logger = logging.getLogger(__name__)
-
-
-def setup_logging(verbose=False):
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
-                        format='%(asctime)s %(levelname)-8s %(message)s',
-                        datefmt='%H:%M:%S')
-
+from src import (create_cleaning_report,load_data,process_data,save_data,
+                 setup_logging,validate_dataframe,validate_input)
+logger=logging.getLogger(__name__)
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Run the data processing pipeline.')
-    parser.add_argument('--input', '-i', required=True, help='Input CSV, JSON or YAML file')
-    parser.add_argument('--output', '-o', required=True, help='Output file')
-    parser.add_argument('--format', choices=['csv', 'json'], default='csv')
-    parser.add_argument('--verbose', '-v', action='store_true')
+    parser=argparse.ArgumentParser(description="Load, validate, clean, and save CSV data")
+    parser.add_argument("--input","-i",required=True,help="Input CSV file")
+    parser.add_argument("--config",required=True,help="YAML configuration file")
+    parser.add_argument("--output","-o",required=True,help="Output CSV file")
+    parser.add_argument("--verbose","-v",action="store_true",help="Enable DEBUG logging")
     return parser.parse_args()
 
-
-def validate_input(filepath):
-    if Path(filepath).is_file():
-        logger.info('Input file validated: %s', filepath)
-        return True
-    logger.error('Input file not found: %s', filepath)
-    return False
-
-
-def as_dataframe(data):
-    """Convert supported loader results to tabular data."""
-    if isinstance(data, pd.DataFrame):
-        return data
-    if isinstance(data, list):
-        return pd.DataFrame(data)
-    if isinstance(data, dict):
-        # The supplied sample JSON stores its records in the 'Data' field.
-        if isinstance(data.get('Data'), list):
-            return pd.DataFrame(data['Data'])
-        return pd.DataFrame([data])
-    raise ValueError('Input must contain a table, list of records, or JSON object')
-
-
 def main():
-    args = parse_arguments()
+    args=parse_arguments()
     setup_logging(args.verbose)
-    logger.debug('Arguments parsed: input=%s, output=%s, format=%s',
-                 args.input, args.output, args.format)
-    if not validate_input(args.input):
-        return 1
+    logger.debug("Arguments parsed: input=%s, output=%s, config=%s",args.input,args.output,args.config)
+    if not validate_input(args.input) or not validate_input(args.config): sys.exit(1)
     try:
-        df = as_dataframe(load_data(args.input))
-        config = load_config()
-        before = df.copy()
-        cleaned = process_data(df, config)
-        report = create_cleaning_report(before, cleaned)
-        print(report)
-        destination = Path(args.output)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if args.format == 'json':
-            cleaned.to_json(destination, orient='records', indent=2)
-        else:
-            cleaned.to_csv(destination, index=False)
-        logger.info('Processing complete: %d -> %d rows', len(before), len(cleaned))
-        logger.info('Saved cleaned data to %s', destination)
-        return 0
-    except (ValueError, KeyError, OSError, TypeError) as exc:
-        logger.error('Pipeline failed: %s', exc)
-        return 1
+        data=load_data(args.input)
+        config=load_data(args.config)
+        if not isinstance(data,pd.DataFrame): raise ValueError("Input data must be CSV tabular data")
+        if not isinstance(config,dict): raise ValueError("Configuration must be a YAML mapping")
+    except (ValueError,OSError,pd.errors.ParserError) as exc:
+        logger.error("Loading failed: %s",exc)
+        sys.exit(1)
+    try:
+        validation=config.get("validation",{})
+        validated=validate_dataframe(data,validation.get("required_columns",[]),validation.get("numeric_columns",[]))
+    except (ValueError,TypeError,KeyError) as exc:
+        logger.error("Validation failed: %s",exc)
+        sys.exit(1)
+    logger.info("Validation complete: %d -> %d rows",len(data),len(validated))
+    try:
+        cleaned=process_data(validated,config)
+    except (ValueError,TypeError,KeyError) as exc:
+        logger.error("Processing failed: %s",exc)
+        sys.exit(1)
+    logger.info("Processing complete: %d -> %d rows",len(validated),len(cleaned))
+    try:
+        path=save_data(cleaned,args.output)
+    except OSError as exc:
+        logger.error("Saving failed: %s",exc)
+        sys.exit(1)
+    logger.info("Saved cleaned data to %s",path)
+    print("\nCleaning report:")
+    print(create_cleaning_report(validated,cleaned))
 
-
-if __name__ == '__main__':
-    sys.exit(main())
+if __name__=="__main__":
+    main()
