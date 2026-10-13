@@ -3,3 +3,15 @@ output/
 venv/
 .venv/
 .DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db

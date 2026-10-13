@@ -18,6 +18,23 @@ python pipeline.py --input fixtures/sample_data.csv --output output/clean.csv --
 
 The pipeline writes `output/clean.csv`, prints a cleaning report, and logs the validation and cleaning steps. The `output/` folder is ignored by Git.
 
+The sample contains 100 rows. Validation removes 2 invalid numeric rows,
+leaving 98 rows. Cleaning then removes 2 duplicates, 2 rows with missing
+values, and 2 outliers, producing 92 rows and 5 columns in `output/clean.csv`.
+The cleaning report starts with the validated data, so it counts 6 removed
+rows rather than 8.
+
+Example output (timestamps omitted):
+
+```text
+INFO     __main__ — Validation complete: 100 -> 98 rows
+INFO     __main__ — Processing complete: 98 -> 92 rows
+INFO     __main__ — Saved cleaned data to output/clean.csv
+
+Cleaning report:
+{'rows_before': 98, 'rows_after': 92, 'rows_removed': 6, 'columns_before': 5, 'columns_after': 5, 'columns_removed': 0}
+```
+
 ## Error-handling example
 
 ```bash

@@ -12,11 +12,18 @@ def validate_dataframe(df,required_columns,numeric_columns):
         if col not in result.columns:
             logger.error("Missing numeric column: %s",col)
             raise ValueError(f"Missing numeric column: {col}")
-        converted=pd.to_numeric(result[col],errors="coerce")
-        invalid=result[col].notna() & converted.isna()
-        count=int(invalid.sum())
-        if count: logger.warning("Removed %d rows with invalid numeric values in %s",count,col)
-        result=result.loc[~invalid].copy()
-        result[col]=pd.to_numeric(result[col],errors="coerce")
-    logger.debug("Validation: %d -> %d rows",len(df),len(result))
+        invalid_rows = []
+        for i, value in result[col].items():
+            if pd.notna(value):
+                try:
+                    float(value)
+                except (ValueError, TypeError):
+                    logger.warning("Invalid numeric value in %s at row %s", col, i)
+                    invalid_rows.append(i)
+        if invalid_rows:
+            logger.warning("Removed %d rows with invalid numeric values in %s", len(invalid_rows), col)
+            result = result.drop(index=invalid_rows).copy()
+        result[col] = pd.to_numeric(result[col])
+    logger.debug("Validation: %d -> %d rows; valid=%d, removed=%d",
+                 len(df), len(result), len(result), len(df) - len(result))
     return result

@@ -3,6 +3,7 @@ import argparse
 import logging
 import sys
 import pandas as pd
+import yaml
 from src import (create_cleaning_report,load_data,process_data,save_data,
                  setup_logging,validate_dataframe,validate_input)
 logger=logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def main():
         config=load_data(args.config)
         if not isinstance(data,pd.DataFrame): raise ValueError("Input data must be CSV tabular data")
         if not isinstance(config,dict): raise ValueError("Configuration must be a YAML mapping")
-    except (ValueError,OSError,pd.errors.ParserError) as exc:
+    except (ValueError,OSError,pd.errors.ParserError,yaml.YAMLError) as exc:
         logger.error("Loading failed: %s",exc)
         sys.exit(1)
     try:
